@@ -181,7 +181,7 @@ fig2c_alt = comp_df_alt%>%
 
 
 # ggsave("fig2c.png", fig2c_alt, dpi = 600)
-ggsave("../main_paper_figs/Figure S1.svg", height = 8, width = 8, fig2c_alt, dpi = 600)
+# ggsave("../main_paper_figs/Figure S1.svg", height = 8, width = 8, fig2c_alt, dpi = 600)
 print(fig2c_alt)
 ```
 ```{r}
@@ -334,7 +334,6 @@ avg_repro = same_method %>%
 
 avg_repro
 
-ggsave("main_paper_figs/Fig1C.pdf", avg_repro, dpi = 600, width = 4, height = 4)
 
 ```
 

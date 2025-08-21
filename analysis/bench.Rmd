@@ -189,7 +189,7 @@ sum_table_brief_by_iteration = sum_table %>%
 sum_table_brief = sum_table_brief_by_iteration %>% 
   group_by(Dataset2, Tool, Singletons, Grouping.Method, color) %>%
   mutate(minutes = `Runtime (seconds)` / 60) %>%
-  summarize(
+  summarise(
     `Average runtime (minutes)` = mean(minutes),
     `SD - minutes` = sd(minutes),
     `Average runtime (seconds)` = mean(`Runtime (seconds)`),
@@ -293,7 +293,7 @@ wb = wb_add_worksheet(wb, "Table S2")
 wb = wb_add_flextable(wb, bench_table_full, sheet = "Table S2")
 
 
-wb_save(wb, file = paste0("main_paper_figs/SuppTables", td(), ".xlsx"), overwrite = FALSE)
+# wb_save(wb, file = paste0("main_paper_figs/SuppTables", td(), ".xlsx"), overwrite = FALSE)
 ```
 
 ```{r}
@@ -320,6 +320,6 @@ tcr_plot = tcr_runtime / tcr_mem
 bench = (iclip_hiv | tcr_plot) + plot_layout(widths = c(0.67, 0.28), guides = "collect")
 bench = (bench / leg) + plot_layout(heights = c(0.95, 0.05))
 
-ggsave(paste0("main_paper_figs/bench", td(), ".svg"), height = 4, width = 4, dpi = 600)
+# ggsave(paste0("main_paper_figs/bench", td(), ".svg"), height = 4, width = 4, dpi = 600)
 bench
 ```
