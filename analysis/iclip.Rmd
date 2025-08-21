@@ -1,0 +1,476 @@
+```{r}
+library(ggplot2)
+library(dplyr)
+library(stringr)
+library(scales)
+library(Hmisc)
+library(gplots)
+library(RColorBrewer)
+library(ggh4x)
+library(flextable)
+library(gridExtra)
+library(patchwork)
+library(tidyverse)
+library(flexlsx)
+```
+
+## func to match accs with sample names and replicates
+```{r}
+get_sample_names <- function(df, namesheet) {
+  to_replace = df %>% distinct(Track) %>% pull(Track)
+ for (filename in to_replace) {
+    if (filename != "cond") {
+      matching_name = namesheet %>% filter(
+        run_accession == filename)
+      
+      matching_name = matching_name$sample_title
+      
+      df[df$Track == filename, "Track"] <- matching_name
+    }
+ }
+  
+  return(df)
+}
+namesheet = read.csv("filereport_read_run_PRJNA286202_tsv.txt", sep = "\t")
+```
+
+## func to prepare raw dataframes from calc_repro.py
+```{r}
+prep_repro_df = function(tsv_dir, namesheet) {
+  
+  dfs = list()
+  for (file in list.files(tsv_dir)) {
+    sample = strsplit(file, "_")[[1]][[1]]
+    
+    cond = as.character(strsplit(file, "_")[[1]][[2]])
+    
+    if (grepl(".tsv", cond)) {
+      cond <- strsplit(cond, ".tsv")[[1]][[1]]
+    }
+    
+    df = read.csv(file.path(tsv_dir, file), sep = "\t")
+    df$cond = cond
+    df$sample = sample
+    df = df %>% mutate(Track = 
+      ifelse(str_detect(Track, "_"), 
+        str_split(Track, "_", simplify = TRUE)[, 1],
+        str_split(Track, ".bam", simplify = TRUE)[, 1]
+    ))
+    dfs <- c(dfs, list(df))
+  }
+  
+  merge_df = bind_rows(dfs)
+  merge_df = merge_df %>% filter(level == 2)
+  merge_df = get_sample_names(merge_df, namesheet)
+  merge_df = merge_df %>% mutate(
+    protein = str_split(Track, "_iCLIP_mm9_", simplify = TRUE)[, 1],
+    replicate = str_split(Track, "_iCLIP_mm9_", simplify = TRUE)[, 2],
+  )
+  
+  merge_df = merge_df %>% mutate(
+    rep = as.numeric(gsub("Rep", "", merge_df$replicate))
+  )
+  return(merge_df)
+}
+```
+
+## load dataframes
+```{r}
+STRICT_DIR = "./reproducibility/strict/"
+SINGLETON_DIR = "./reproducibility/singletons/"
+
+## update 2024-Oct-21: extra tools
+OTHER_TOOL_DIR = "./reproducibility/other_tools"
+##
+
+strict = prep_repro_df(STRICT_DIR, namesheet)
+
+singleton = prep_repro_df(SINGLETON_DIR, namesheet)
+
+other_tools = prep_repro_df(OTHER_TOOL_DIR, namesheet)
+```
+
+## side-by-side singleton and strict 
+```{r}
+singleton$singletons = "Singletons"
+strict$singletons = "Strict"
+
+singleton$cond = paste0("RUMINA - ", singleton$cond)
+strict$cond = paste0("RUMINA - ", strict$cond)
+
+other_tools$singletons = "Singletons"
+
+comp_df = rbind(singleton, strict, other_tools)
+```
+
+# test: add in repro from unprocessed files
+```{r fig.width=6, fig.height=7}
+
+ORIG_DIR = "./reproducibility/original/"
+original = prep_repro_df(ORIG_DIR, namesheet)
+original$singletons = "Unprocessed"
+
+comp_df_alt = rbind(comp_df, original)
+```
+
+#plot 
+```{r fig.width=8, fig.height=7}
+# formatting condition colors and assigning colors
+comp_df_alt$fraction = comp_df_alt$hits / comp_df_alt$totals
+
+
+## make the y axes semi-free (voodoo magic)
+comp_df_alt = comp_df_alt %>% 
+  group_by(protein) %>%
+  mutate(max.y.tick = ifelse(
+    max(pretty_breaks()(c(0, fraction))) >= 0.5,
+    1, 
+    0.4
+  )) %>%
+  ungroup()
+
+comp_df_alt$min.y.tick = 0
+comp_df_alt$cond <- sub("^(.)", "\\U\\1", comp_df_alt$cond, perl = TRUE)
+
+unique_cond_sorted <- sort(unique(comp_df_alt$cond))
+
+
+custom_colors <- brewer.pal(n = length(unique_cond_sorted), name = "Dark2")
+color_mapping <- setNames(custom_colors, unique_cond_sorted) 
+comp_df_alt$color = color_mapping[comp_df_alt$cond]
+
+comp_df_alt = comp_df_alt %>% filter(!str_detect(cond, "Je"))
+
+fig2c_alt = comp_df_alt%>% 
+  
+    subset(cond != "Original" & fold == 1 & level == 2) %>%
+    ggplot() + 
+    aes(x=rep, y=fraction, shape=singletons, color=cond) +
+
+    geom_point(size = 1.8, alpha = 1, position= position_dodge(0.1),
+               aes(x = as.numeric(factor(rep)) + case_when(
+                 singletons == "Strict" ~ -0.1, 
+                 singletons == "Singletons" ~ 0.1,
+                 singletons == "Unprocessed" ~ 0)
+               )) + 
+  
+    geom_blank(aes(y = max.y.tick)) +
+  
+    geom_point(data = comp_df_alt %>% subset(cond == "Original" & fold == 1 & level == 2), color = "black") +
+    facet_wrap(~protein, nrow = 3) +
+  
+    theme_bw(base_size=8) +
+    scale_shape_manual(values = c("Unprocessed" = 8, "Singletons" = 19, "Strict" = 17)) +
+    scale_color_manual(values = comp_df_alt$color) + 
+    scale_x_continuous(breaks = c(1, 2, 3), labels = c("R1", "R2", "R3")) + 
+    scale_y_continuous(labels=percent, breaks = seq(0, 1, 0.25)) +
+    ylab("Reproducibility\n(% of positions depth >2,\n present in another replicate)") +
+    theme(
+          axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5),
+          axis.title.x = element_blank(),
+          axis.text.y = element_text(size = 8, color = "black"), 
+          axis.title.y = element_text(size = 12, color = "black"),
+          strip.text = element_text(size = 8, color = "black"), 
+          strip.background = element_rect(color = "black", fill = "grey85"),
+          legend.justification = c("left", "top"),
+          legend.key.size=unit(0.6,"lines"),
+          legend.text = element_text(size = 8, color = "black"),
+          legend.title = element_blank(), 
+          panel.grid = element_blank()
+          )
+
+
+# ggsave("fig2c.png", fig2c_alt, dpi = 600)
+ggsave("../main_paper_figs/Figure S1.svg", height = 8, width = 8, fig2c_alt, dpi = 600)
+print(fig2c_alt)
+```
+```{r}
+
+comp_df_sum = comp_df_alt %>%
+  subset(fold == 1 & level == 2) %>%
+  group_by(protein, cond) %>%
+  mutate(max_repro = max(fraction)) %>%
+  ungroup() %>%
+  mutate(nudge_x = case_when(
+        singletons == "Strict" ~ -0.1,
+        singletons == "Singletons" ~ 0.1,
+        singletons == "Unprocessed" ~ 0,
+        TRUE ~ 0  
+    ))
+
+fig2c_alt_dot= comp_df_sum%>% 
+    subset(cond != "Original") %>%
+    ggplot() + 
+    aes(x=protein, y=max_repro, shape=singletons, color=cond) +
+
+    geom_point(size = 1.8, alpha = 1,position = position_nudge(x = comp_df_sum$nudge_x)) + 
+    geom_blank(aes(y = max.y.tick)) +
+  
+    geom_point(data = comp_df_sum %>% subset(cond == "Original"), color = "black") +
+  
+    theme_bw(base_size=8) +
+    scale_shape_manual(values = c("Unprocessed" = 8, "Singletons" = 19, "Strict" = 17)) +
+    scale_color_manual(values = comp_df_alt$color) + 
+    scale_y_continuous(labels=percent, breaks = seq(0, 1, 0.25)) +
+    ylab("Reproducibility\n(% of positions depth >2,\n present in another replicate)") +
+    theme(
+          axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5),
+          axis.title.x = element_blank(),
+          axis.text.y = element_text(size = 8, color = "black"), 
+          axis.title.y = element_text(size = 12, color = "black"),
+          strip.text = element_text(size = 8, color = "black"), 
+          strip.background = element_rect(color = "black", fill = "grey85"),
+          legend.justification = c("left", "top"),
+          legend.key.size=unit(0.6,"lines"),
+          legend.text = element_text(size = 8, color = "black"),
+          legend.title = element_blank(), 
+          panel.grid = element_blank()
+          )
+
+print(fig2c_alt_dot)
+
+```
+```{r}
+same_method = comp_df_alt %>%
+  subset(fold == 1 & level == 2) %>%
+  mutate(cond_detailed = paste0(cond, ifelse(singletons == "Strict", " (strict)", ""))) %>%
+  filter(cond == "RUMINA - directional" | cond == "UMI-tools" | cond == "UMICollapse")
+
+same_method[same_method$cond_detailed == "RUMINA - directional (strict)", "color" ] <- "#808080"
+
+same_method$cond_detailed = factor(same_method$cond_detailed, levels = c(
+  "UMI-tools",
+  "UMICollapse",
+  "RUMINA - directional",
+  "RUMINA - directional (strict)"
+))
+
+color_mapping_same_method <- setNames(same_method$color, same_method$cond_detailed)
+#####################################################################
+
+same_method_comparison = same_method %>%
+  group_by(cond_detailed, protein, replicate) %>%
+  mutate(rep_char = paste0("Replicate ", as.character(rep))) %>%
+  ggplot(aes(x = protein, y = fraction, color = cond_detailed, fill = cond_detailed)) + 
+  facet_wrap(~rep_char) +
+  scale_color_manual(values = color_mapping_same_method) +
+  scale_fill_manual(values = color_mapping_same_method) +
+  scale_y_continuous(labels=percent, breaks = seq(0, 1.0, 0.1), limits = c(0, 1.0)) +
+  geom_col(position = position_dodge2(padding = 0.1), width = 0.8) +
+  theme_classic(base_size = 8) +
+  ylab("Reproducibility\n(% of iCLIP tags depth >2 present in another replicate)") +
+  xlab("Protein") +
+  theme(
+    axis.text.x = element_text(size = 8, color = "black", angle = 90),
+    axis.text.y = element_text(size = 8, color = "black", angle = 90, hjust = 0.35),
+    legend.position = "bottom",
+
+    legend.title = element_blank()
+  )
+#####################################################################
+
+same_method_table = same_method %>%
+  select(c(protein, replicate, cond_detailed, fraction)) %>%
+  pivot_wider(names_from = cond_detailed, values_from = fraction) %>%
+  flextable() %>%
+  align(align = "center", part = "all") %>%
+  colformat_double(
+    big.mark = ",",
+    decimal.mark = ".",
+    digits = 2
+  ) %>%
+  width(width = 1) %>% 
+  add_header_lines("Table S3: Comparison of iCLIP inter-replicate reproducibility between RUMINA (with and without singletons) and UMI-tools.") %>%
+  add_footer_lines("RUMINA was ran with with singleton retention to match UMI-tools, as well as with singleton removal (strict). Inter-replicate reproducibility was calculated as described in UMI-tools.") %>%
+  autofit()
+#####################################################################
+  
+print(same_method_comparison)
+print(same_method_table)
+```
+```{r}
+same_method = comp_df_alt %>%
+  subset(fold == 1 & level == 2) %>%
+  mutate(cond_detailed = paste0(cond, ifelse(singletons == "Strict", " (strict)", ""))) %>%
+  filter(cond == "RUMINA - directional" | cond == "UMI-tools" | cond == "UMICollapse")
+
+same_method[same_method$cond_detailed == "RUMINA - directional (strict)", "color" ] <- "#808080"
+
+same_method$cond_detailed = factor(same_method$cond_detailed, levels = c(
+  "RUMINA - directional (strict)",
+  "UMI-tools",
+  "UMICollapse"
+))
+
+
+color_map <- setNames(
+  c("plum3", "deeppink4", "#104E8B"),
+  c("UMI-tools", "UMICollapse", "RUMINA")
+)
+
+#####################################################################
+
+avg_repro = same_method %>%
+  filter(cond_detailed != "RUMINA - directional") %>%
+  mutate(cond_detailed = str_replace(cond_detailed, " - directional \\(strict\\)", "")) %>%
+  group_by(cond_detailed, protein) %>%
+  summarise(avg_frac = mean(fraction)) %>%
+  ggplot(aes(x = protein, y = avg_frac, color = cond_detailed, fill = cond_detailed)) + 
+  scale_color_manual(values = color_map) +
+  scale_fill_manual(values = color_map) +
+  scale_y_continuous(labels=percent, breaks = seq(0, 1.0, 0.1), limits = c(0, 1.0)) +
+  geom_col(position = position_dodge2(padding = 0.1), width = 0.8) +
+  theme_classic(base_size = 8) +
+  ylab("Reproducibility averaged\n(% of iCLIP tags depth ≥ 2 present in another replicate)") +
+  xlab("Protein") +
+  theme(
+    axis.text.x = element_text(size = 8, color = "black", angle = 90),
+    axis.text.y = element_text(size = 8, color = "black", angle = 90, hjust = 0.35),
+    legend.position = "bottom",
+
+    legend.title = element_blank()
+  )
+#####################################################################
+
+avg_repro
+
+ggsave("main_paper_figs/Fig1C.pdf", avg_repro, dpi = 600, width = 4, height = 4)
+
+```
+
+
+
+export UMI-tools numbers for comparison to UMI-tools manuscript: 
+https://github.com/CGATOxford/UMI-tools_pipelines/blob/master/notebooks/Fig3b-Base_level_reproducibility.ipynb
+```{r}
+our_umi_tools_results = comp_df_alt %>%
+  filter(cond == "UMI-tools" & fold == 1 & level == 2) %>%
+  select(c(protein, fraction, rep))
+
+our_umi_tools_results = our_umi_tools_results %>%
+  mutate(
+    Track = toupper(paste0(protein, "-GFP-R",rep,".bam")),
+    origin = "EP",
+    fraction = round(fraction, 6)
+    ) %>%
+  select(c(Track, fraction, origin)) %>%
+  pivot_wider(names_from = c(origin), values_from = fraction)
+
+umi_tools_paper_results = read.csv("reproducibility/original_umi_tools_results.csv") %>%
+  mutate(
+  Track = toupper(Track),
+  fraction = round(fraction, 6),
+  origin = "UMI-tools paper"
+  ) %>%
+  pivot_wider(names_from = c(origin), values_from = fraction)
+
+comparison_to_paper_table = full_join(our_umi_tools_results, umi_tools_paper_results, by = "Track") %>%
+  arrange(Track) %>%
+  mutate(Track = gsub(".BAM", "", Track)) %>%
+  flextable() %>%
+  align(align = "center", part = "all") %>%
+  width(width = 1.4) %>%
+  save_as_docx(path = "Table S2.docx")
+
+comparison_to_paper_table
+```
+```{r}
+same_method2 = comp_df_alt %>%
+  subset(fold == 1 & level == 2) %>%
+  mutate(cond_detailed = paste0(cond, ifelse(singletons == "Strict", " (strict)", ""))) %>%
+  filter(cond == "RUMINA - directional" | cond == "UMI-tools" | cond == "UMICollapse")
+
+same_method2[same_method2$cond_detailed == "RUMINA - directional (strict)", "color" ] <- "#808080"
+
+same_method2$cond_detailed = factor(same_method2$cond_detailed, levels = c(
+  "UMI-tools",
+  "UMICollapse",
+  "RUMINA - directional",
+  "RUMINA - directional (strict)"
+))
+
+same_method2 = same_method2 %>%
+  group_by(protein, cond_detailed) %>%
+  mutate(max_repro = max(fraction))
+
+color_mapping_same_method2 <- setNames(same_method2$color, same_method2$cond_detailed)
+#####################################################################
+
+same_method2_comparison = same_method2 %>%
+  group_by(protein, cond_detailed) %>%
+  summarise(max_repro = max(fraction)) %>%
+  ggplot(aes(x = protein, y = max_repro, color = cond_detailed, fill = cond_detailed)) + 
+  scale_color_manual(values = color_mapping_same_method2) +
+  scale_fill_manual(values = color_mapping_same_method2) +
+  scale_y_continuous(labels=percent, breaks = seq(0, 1.0, 0.1), limits = c(0, 1.0)) +
+  geom_col(position = position_dodge2(padding = 0.1), width = 0.8) +
+  theme_classic(base_size = 12) +
+  ylab("Max Reproducibility\n(Max % of positions depth >2 present in two other replicates)") +
+  xlab("Protein") +
+  theme(
+    axis.text.x = element_text(size = 12, color = "black", angle = 90),
+    axis.text.y = element_text(size = 12, color = "black", angle = 90, hjust = 0.35),
+    legend.position = "none",
+
+    legend.title = element_blank()
+  )
+  
+# ggsave("FigureS2.pdf", same_method2_comparison, dpi = 600, width = 6, height = 4)
+print(same_method2_comparison)
+```
+
+
+## now make same figure comparing all tools:
+```{r}
+same_method2_all = comp_df_alt %>%
+  subset(fold == 1 & level == 2) %>%
+  filter(cond == "RUMINA - directional" | cond == "UMI-tools" | cond == "UMICollapse" ) %>%
+  mutate(cond_detailed = paste0(cond, ifelse(singletons == "Strict", " (strict)", "")))
+
+same_method2_all = same_method2_all %>%
+  group_by(protein, cond_detailed) %>%
+  mutate(max_repro = max(fraction))
+
+same_method2_all$cond_detailed = factor(same_method2_all$cond_detailed, levels = c(
+  "RUMINA - directional (strict)",
+  "UMI-tools",
+  "UMICollapse"
+))
+
+# color_mapping_same_method2_all <- setNames(same_method2_all$color, same_method2_all$cond_detailed)
+same_method2_all = same_method2_all %>%
+  mutate(color = case_when(
+    str_detect(cond_detailed, "UMI-tools") ~ "plum3",
+    str_detect(cond_detailed, "UMICollapse") ~ "deeppink4",
+    str_detect(cond_detailed, "RUMINA - directional \\(strict\\)") ~ "#104E8B",
+  ))
+#####################################################################
+
+color_mapping_same_method2_all <- setNames(same_method2_all$color, same_method2_all$cond_detailed)
+
+same_method2_all_comparison = same_method2_all %>%
+  filter(cond_detailed != "RUMINA - directional") %>%
+  summarise(max_repro = max(fraction)) %>%
+  ggplot(aes(x = protein, y = max_repro, color = cond_detailed, fill = cond_detailed)) + 
+  scale_color_manual(values = color_mapping_same_method2_all) +
+  scale_fill_manual(values = color_mapping_same_method2_all) +
+  scale_y_continuous(labels=percent, breaks = seq(0, 1.0, 0.1), limits = c(0, 1.0)) +
+  geom_col(position = position_dodge2(padding = 0.25), width = 0.9, alpha = 0.8) +
+  theme_classic(base_size = 9) +
+  ylab("Max iCLIP Reproducibility") +
+  xlab("Protein") +
+  theme(
+    axis.text.x = element_text(size = 8, color = "black", angle = 0),
+    axis.text.y = element_text(size = 8, color = "black", hjust = 1),
+    axis.title.y = element_text(size = 9, margin = margin(r = -25)),
+    legend.position = "none",
+
+    legend.title = element_blank(),
+    plot.tag = element_text(size = 12),
+  ) +
+  labs(tag = "C")
+
+same_method2_all_comparison
+  
+# ggsave("main_paper_figs/iclip.png", same_method2_all_comparison, dpi = 600, width = 4, height = 4)
+```

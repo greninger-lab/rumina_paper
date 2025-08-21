@@ -1,0 +1,325 @@
+
+---
+title: "bench_plot2"
+author: "EP"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(cowplot)
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(flextable)
+library(flexlsx)
+library(openxlsx2)
+library(stringr)
+```
+
+```{r}
+add_read_count <- function(label, df, x, all_labels) {
+  new_label = paste0(label, "\n(", format_millions(df[df$Dataset == x,]$total_inreads[1]), ")")
+  all_labels <- c(all_labels, label)
+  return(new_label)
+}
+
+format_millions <- function(x) {
+  new_label = case_when(
+    x >= 1e6 & x < 1e9 ~ paste0(round(x / 1e6, 1), "m"), 
+    x >= 1e9 ~ paste0(round(x / 1e9, 1), "b"), 
+    x < 1e6 ~ as.character(x))
+  
+  return(new_label)
+}
+
+format_10_power <- function(x) {
+  parse(text = paste0("10^", x))
+}
+
+make_sum_plot <- function(dataframe, dataset, max_y_tick, break_increment) {
+  dtable = dataframe %>% 
+    filter(Dataset2 == dataset)
+  
+  color_map = setNames(dtable$color, dtable$Tool)
+  
+  sum_plot = dtable %>%
+    mutate(Dataset2 = str_split_i(Dataset2, "\n", 1)) %>%
+    ggplot() +
+    facet_grid(~Dataset2) + 
+    geom_col(aes(x = Tool, y = `Average runtime (minutes)`, fill = Tool), alpha = 0.8, show.legend = TRUE, width = 0.95) +
+    geom_errorbar(aes(x = Tool, ymin = `Average runtime (minutes)` - `SD - minutes`, ymax = `Average runtime (minutes)` + `SD - minutes`), width = 0.2) +
+    scale_y_continuous(limits = c(0, max_y_tick), breaks = seq(0, max_y_tick, break_increment)) +
+    scale_fill_manual(values = color_map, drop = FALSE) + 
+    theme_classic() +
+    ylab("Runtime\n(minutes)") + 
+    xlab(NULL) + 
+    guides(fill = guide_legend(nrow = 1), color = guide_legend(nrow = 1)) +
+    theme(
+      axis.text = element_text(size = 8, color = "black"),
+      axis.title = element_text(size = 8, color = "black"),
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      strip.background = element_blank(),
+      legend.position = "none",
+    )
+    
+  return(sum_plot)
+}
+    
+    
+make_mem_plot <- function(dataframe, dataset, max_y_tick, break_increment) {
+  dtable = dataframe %>% 
+    filter(Dataset2 == dataset)
+  
+  color_map = setNames(dtable$color, dtable$Tool)
+  
+  mem_plot = dtable %>%
+    ggplot() +
+    geom_col(aes(x = Tool, y = `Peak memory usage (GB)`, fill = Tool), alpha = 0.8, width =0.95) +
+    geom_errorbar(aes(x = Tool, ymin = `Peak memory usage (GB)` - `SD - Peak memory usage`, ymax = `Peak memory usage (GB)` + `SD - Peak memory usage`), width = 0.2) +
+    scale_y_continuous(limits = c(0, max_y_tick), breaks = seq(0, max_y_tick, break_increment)) +
+    scale_fill_manual(values = color_map, drop = FALSE) + 
+    theme_classic() +
+    ylab("Peak memory\nusage (GB)") +
+    xlab(NULL) +
+    theme(
+      axis.text = element_text(size = 8, color = "black"),
+      axis.text.x = element_blank(),
+      axis.title = element_text(size = 8, color = "black"),
+      axis.ticks.x = element_blank(),
+      legend.position = "none"
+    )
+  return(mem_plot)
+}
+```
+
+```{r}
+bench_df = read.csv("performance/bench_report_2025-08-20_14_04_31.csv")
+
+bench_df$minutes = bench_df$Runtime / 60
+
+bench_df = bench_df %>%
+  mutate(
+   raw_tool = Tool,
+   Tool = str_split_i(str_split_i(raw_tool, "\\.", 1), "_[0-9]", 1),
+   Tool = str_replace(Tool, "1_threads", "1_thread"),
+   Method = str_split_i(raw_tool, "\\.", 2),
+   rep = str_split_i(raw_tool, "\\.", 3),
+   singletons = str_split_i(raw_tool, "\\.", 4),
+   File = str_replace_all(File, "_sorted|.bam", ""),
+   File = str_replace(File, "hiv_bwa", "SRR11207257"),
+   File = paste0(File, ".bam")
+  ) %>%
+  group_by(Dataset, Tool) %>%
+  mutate(total_inreads = sum(Input.reads..total.) / 3) %>%
+  ungroup()
+
+  all_labels = c()
+  
+  bench_df = bench_df %>%
+    filter(Dataset  != "miseq" & Dataset != "novaseq" & Dataset != "miseq_unmerged")
+  
+  bench_df$Dataset2 = case_when(
+    bench_df$Dataset == "iclip" ~ add_read_count("iCLIP", bench_df, "iclip", all_labels),
+    bench_df$Dataset == "tcr" ~ add_read_count("TCR", bench_df, "tcr", all_labels),
+    bench_df$Dataset == "hiv_wgs" ~ add_read_count("HIV WGS", bench_df, "hiv_wgs", all_labels),
+  )
+  
+  # filter for just the conditions used for each dataset
+  bench_df = bench_df %>% 
+    filter(
+      (Dataset == "iclip" & Grouping.Method != "acyclic" & Singletons == "Singletons") |
+      (Dataset == "hiv_wgs" & Grouping.Method != "directional" & xor(Tool == "RUMINA", Singletons == "Singletons")) |
+      (Dataset == "tcr" & Grouping.Method != "acyclic" & Singletons == "Singletons")
+      )
+  
+  # use asterisks for processes that didn't complete
+  bench_df$Runtime = ifelse(bench_df$Completed. == "Terminated", NA, bench_df$Runtime)
+  
+  bench_df = bench_df[order(bench_df$Input.reads..mapped.),]
+
+  table_df = bench_df %>%
+    select(Tool, Dataset2, File, Grouping.Method, Singletons, Runtime, Peak.memory.used, Ouput.reads..total., Output.reads..mapped., Iteration) %>% 
+    mutate(
+      `Runtime (seconds)` = Runtime,
+      `Peak memory usage (GB)` = Peak.memory.used,
+      outreads = Ouput.reads..total.
+    )
+  
+  table_df = table_df[order(
+    table_df$Dataset2, 
+    table_df$File
+  ),
+    ]
+  
+```
+
+```{r}
+sum_table = table_df %>%
+  mutate(minutes = `Runtime (seconds)` / 60) %>%
+  arrange(match(Dataset2, c("iCLIP\n(1.3b)", "TCR\n(9.3m)", "HIV WGS\n(74.3m)")))
+  
+
+sum_table = sum_table %>%
+  mutate(
+    Tool = str_replace_all(Tool, "_", " "),
+    color = case_when(
+    Tool == "UMI-tools" ~ "plum3",
+    Tool == "UMICollapse" ~ "deeppink4",
+    Tool == "RUMINA" ~ "#104E8B"
+  ),
+  )
+
+## summarize metrics per dataset (across all dataset files)
+sum_table_brief_by_iteration = sum_table %>% 
+    group_by(Dataset2, Tool, Singletons, Grouping.Method, color, Iteration) %>%
+    summarise(
+      `Runtime (seconds)` = sum(Runtime),
+      `Peak memory usage (GB)` = max(Peak.memory.used),
+      outreads = sum(outreads),
+      num_files = n(),
+      outreads = sum(Ouput.reads..total.),
+      color = unique(color)
+    ) %>%
+    ungroup() %>%
+    arrange(match(Dataset2, c("iCLIP\n(1.3b)", "TCR\n(9.3m)", "HIV WGS\n(74.3m)")))
+
+## get std dev for runtime and memory usage across iterations for each dataset
+sum_table_brief = sum_table_brief_by_iteration %>% 
+  group_by(Dataset2, Tool, Singletons, Grouping.Method, color) %>%
+  mutate(minutes = `Runtime (seconds)` / 60) %>%
+  summarize(
+    `Average runtime (minutes)` = mean(minutes),
+    `SD - minutes` = sd(minutes),
+    `Average runtime (seconds)` = mean(`Runtime (seconds)`),
+    `SD - Runtime` = sd(`Runtime (seconds)`),
+    `SD - Peak memory usage` = sd(`Peak memory usage (GB)`),
+    `Peak memory usage (GB)` = max(`Peak memory usage (GB)`),
+    outreads = sum(outreads),
+    Iterations = n(),
+    num_files = n() / Iterations,
+    ) %>% ungroup %>%
+    arrange(match(Dataset2, c("iCLIP\n(1.3b)", "TCR\n(9.3m)", "HIV WGS\n(74.3m)")))
+``` 
+
+```{r}
+dummy_dat = data.frame(
+  Tool = c("UMI-tools", "RUMINA", "UMICollapse"),
+  value = c(1, 1, 1)
+)
+
+dummy_dat = dummy_dat %>%
+  mutate(
+    Tool = str_replace_all(Tool, "_", " "),
+    color = case_when(
+    Tool == "UMI-tools" ~ "plum3",
+    Tool == "UMICollapse" ~ "deeppink4",
+    Tool == "RUMINA" ~ "#104E8B"
+  ),
+  )
+
+leg = ggplot() +
+  geom_col(data = dummy_dat, aes(x = Tool, y = value, fill = Tool)) + 
+  scale_fill_manual(drop = FALSE, values = setNames(dummy_dat$color, dummy_dat$Tool)) +
+  theme_classic() + theme(legend.title = element_blank(), legend.box = "horizontal", legend.location = "plot", legend.position = "right") + guides(fill = guide_legend(nrow = 1)) 
+
+leg
+
+leg = cowplot::get_legend(leg)
+
+```
+
+```{r}
+
+td = function() {
+  current_datetime <- Sys.time()
+  formatted_string <- format(current_datetime, format = "%Y-%m-%d_%H_%M_%S")
+  return (formatted_string)
+}
+
+
+
+bench_table = sum_table_brief %>% 
+  select(c(Dataset2, Tool, Singletons, Grouping.Method, outreads, `Average runtime (seconds)`, `SD - Runtime`, `Peak memory usage (GB)`, `SD - Peak memory usage`, Iterations)) %>% 
+  filter(!str_detect(Tool, "4 threads|8 threads")) %>%
+  mutate(Tool = str_replace(Tool, "1 thread", "")) %>%
+  mutate(
+    Singletons = tolower(Singletons),
+    Grouping.Method = sub("$^", "directional", Grouping.Method),
+    ) %>%
+  setNames(c("Dataset", "Tool", "Singletons", "Grouping method", "Total output reads", "Average runtime (seconds)", "SD - Runtime", "Peak memory usage (GB)", "SD - Peak memory usage", "Iterations")) %>% 
+  flextable() %>%
+  colformat_num(big.mark = ",", decimal.mark = ".") %>% 
+  colformat_double(j = 6, digits = 0) %>%
+  colformat_double(j = 7, digits = 2) %>%
+  colformat_double(j = 8, digits = 2) %>%
+  colformat_double(j = 9, digits = 2) %>%
+  add_header_lines(values = c("Table S1: Performance and output metrics of RUMINA, UMICollapse, and UMI-tools on test datasets (summarized).")) %>%
+  add_footer_lines(values = c("Runtime, memory usage, and output read count for tested tools in HIV WGS, TCR, and iCLIP datasets. Across all test files and iterations per dataset, runtime and output reads were summed. Maximum memory accross files and iterations is reported. All benchmarking was performed on a 10-Core M1 Max Mac Studio with 64GB of memory.")) %>%
+  align(align = "center", part = c("body")) %>%
+  align(align = "center", part = c("header")) %>%
+  align(align = "left", part = c("footer")) %>%
+  autofit()
+
+bench_table
+
+bench_table_full = sum_table %>% 
+  select(c(Dataset2, File, Tool, Singletons, Grouping.Method, Ouput.reads..total., `Runtime (seconds)`, `Peak memory usage (GB)`, Iteration)) %>% 
+  mutate(
+    Singletons = tolower(Singletons),
+    Grouping.Method = sub("^$", "directional", Grouping.Method),
+    ) %>%
+  setNames(c("Dataset", "File", "Tool", "Singletons", "Grouping Method", "Output Reads", "Runtime (seconds)", "Peak memory usage (GB)", "Iteration")) %>% 
+  flextable() %>%
+  colformat_num(big.mark = ",", decimal.mark = ".") %>% 
+  colformat_double(j = 7, digits = 0) %>%
+  colformat_double(j = 8, digits = 2) %>%
+  add_header_lines(values = c("Table S2: Per-file performance and output metrics of RUMINA, UMICollapse, and UMI-tools on test datasets.")) %>%
+  add_footer_lines(values = c("Runtime, memory usage, and output read count for each file tested with all software, across the HIV WGS, TCR, and iCLIP datasets. All benchmarking was performed on a 10-core M1 Max Mac Studio with 64GB of memory.")) %>%
+  align(align = "center", part = c("body")) %>%
+  align(align = "center", part = c("header")) %>%
+  align(align = "left", part = c("footer")) %>%
+  autofit()
+
+bench_table_full
+
+wb = wb_workbook()
+
+wb = wb_add_worksheet(wb, "Table S1")
+wb = wb_add_flextable(wb, sheet = "Table S1", bench_table)
+
+wb = wb_add_worksheet(wb, "Table S2")
+wb = wb_add_flextable(wb, bench_table_full, sheet = "Table S2")
+
+
+wb_save(wb, file = paste0("main_paper_figs/SuppTables", td(), ".xlsx"), overwrite = FALSE)
+```
+
+```{r}
+dplots = list()
+iter = 0
+comb_legend = NULL
+
+unique_tool_sorted <- sort(unique(sum_table$Tool))
+plot_table = sum_table_brief %>%
+  mutate(minutes = `Average runtime (seconds)` / 60)
+
+hiv_mem = make_mem_plot(plot_table, "HIV WGS\n(74.3m)", 45, 15) + ylab(NULL)
+tcr_mem = make_mem_plot(plot_table, "TCR\n(9.3m)", 3, 1) + ylab(NULL)
+iclip_mem = make_mem_plot(plot_table, "iCLIP\n(1.3b)", 45, 15)
+
+iclip_runtime = make_sum_plot(plot_table, "iCLIP\n(1.3b)", 120, 40) + labs(tag = "B") + theme(plot.tag = element_text(size = 12))
+tcr_runtime = make_sum_plot(plot_table, "TCR\n(9.3m)", 3, 1) + ylab(NULL) 
+hiv_runtime = make_sum_plot(plot_table, "HIV WGS\n(74.3m)", 120, 40) + ylab(NULL)
+
+iclip_hiv_runtime = (iclip_runtime | hiv_runtime) + plot_layout(axes = "collect", guides = "collect")
+iclip_hiv_mem = (iclip_mem | hiv_mem) + plot_layout(axes = "collect")
+iclip_hiv = iclip_hiv_runtime / iclip_hiv_mem
+tcr_plot = tcr_runtime / tcr_mem
+bench = (iclip_hiv | tcr_plot) + plot_layout(widths = c(0.67, 0.28), guides = "collect")
+bench = (bench / leg) + plot_layout(heights = c(0.95, 0.05))
+
+ggsave(paste0("main_paper_figs/bench", td(), ".svg"), height = 4, width = 4, dpi = 600)
+bench
+```

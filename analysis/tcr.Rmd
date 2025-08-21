@@ -1,0 +1,345 @@
+---
+title: "tcr2"
+author: "EP"
+date: "2025-08-14"
+output: html_document
+---
+
+```{r}
+library(patchwork)
+library(ggplot2)
+library(tidyverse)
+library(VennDiagram)
+library(stringr)
+library(UpSetR)
+library(ComplexUpset)
+library(flextable)
+library(RColorBrewer)
+library(cowplot)
+library(gridExtra)
+library(ggplotify)
+library(ggbeeswarm)
+library(dplyr)
+```
+
+```{r}
+prep_df <- function(dir) {
+  
+  sample_dfs = list()
+  reports = list.files(dir, pattern = "*_report.tsv", full.names = TRUE)
+  
+  sample_dfs <- lapply(reports, function(report_path) {
+    df <- read.csv(report_path, sep = "\t")
+    
+    ## get software used and sample
+    tool = basename(dir)
+    if (str_detect(tool, "\\.")) {
+      tool = str_split_i(tool, "\\.", 1)
+      
+    }
+    sample = str_split_i(basename(report_path), "_", 1)
+    
+    df$tool = tool
+    df$sample = sample
+    
+    sample_dfs <- c(sample_dfs, list(df))
+  })
+  complete_df = bind_rows(sample_dfs)
+  return (complete_df)
+}
+
+```
+
+```{r}
+# FILES WITH SINGLETONS
+rumina8 = prep_df("tcr/trust_output_2025Aug14/RUMINA_8_threads_0/")
+rumina4 = prep_df("tcr/trust_output_2025Aug14/RUMINA_4_threads_0/")
+rumina1 = prep_df("tcr/trust_output_2025Aug14/RUMINA_1_threads_0/")
+
+# FILES ACTUALLY USED FOR ANALYSIS
+rumina8_strict = prep_df("tcr/out_trust4_2025Aug19/RUMINA_8_threads.directional_0_None/") %>% mutate(tool = paste0(tool, " (strict)"))
+rumina4_strict = prep_df("tcr/out_trust4_2025Aug19/RUMINA_4_threads.directional_0_None/") %>% mutate(tool = paste0(tool, " (strict)"))
+rumina1_strict = prep_df("tcr/out_trust4_2025Aug19/RUMINA_1_threads.directional_0_None/") %>% mutate(tool = paste0(tool, " (strict)"))
+
+
+umitools = prep_df("tcr/out_trust4_UMITOOLS_2025Aug20//UMI-tools_0/")
+umicollapse = prep_df("tcr/trust_output_2025Aug14/UMICollapse_0/")
+
+total_df = rbind(rumina8, rumina4, rumina1, rumina8_strict, rumina4_strict, rumina1_strict, umitools, umicollapse)
+
+rm(
+  rumina8,
+  rumina4,
+  rumina1,
+  rumina8_strict,
+  rumina4_strict,
+  rumina1_strict,
+  umicollapse,
+  umitools
+)
+```
+
+
+```{r}
+
+sum_df = total_df %>%
+  mutate(tool = str_replace(tool, "_\\d+$", "")) %>%
+  mutate(tool = str_replace(tool, "1_threads", "1_thread")) %>%
+  group_by(tool, sample) %>%
+  filter(!str_detect(CDR3aa, "out_of_frame")) %>%
+  summarise(num_clones = length(unique(CDR3nt))) %>%
+  ungroup()
+
+
+unique_tool_sorted <- sort(unique(sum_df$tool))
+
+custom_colors <- brewer.pal(n = length(unique_tool_sorted), name = "Dark2")
+color_mapping <- setNames(custom_colors, unique_tool_sorted) 
+sum_df$color = color_mapping[sum_df$tool]
+```
+
+```{r}
+prep_dfs_iter<- function(dir) {
+  
+  iter_dfs = list()
+  run_dirs = list.files(dir, pattern = "*[0-9]{1-2}$", full.names = TRUE)
+  
+  iter_dfs <- lapply(run_dirs, function(dir) {
+    
+    run = basename(dir)
+    if (str_detect(run, "\\.")) {
+      tool = str_split_i(run, "\\.", 1)
+      iteration = str_split_i(run, "_", -2)
+    } else {
+      tool = str_split_i(run, "_[0-9]{1,2}$", 1)
+      iteration = str_split_i(run, "_", -1)
+    }
+    
+    sample_dfs = list()
+    
+    samples = list.files(dir, pattern = "*_report.tsv", full.names = TRUE)
+    
+    sample_dfs <- lapply(samples, function(report) {
+    
+      df <- read.csv(report, sep = "\t")
+      
+      ## get software used and sample, and iteration
+      sample = str_split_i(basename(report), "_", 1)
+      
+      df$tool = tool
+      df$sample = sample
+      df$iteration = iteration
+      
+      sample_dfs <- c(sample_dfs, list(df))
+      })
+    iter_df = bind_rows(sample_dfs)
+    iter_dfs <- c(iter_dfs, list(iter_df))
+  })
+  complete_df = bind_rows(iter_dfs)
+  return (complete_df)
+}
+```
+
+```{r}
+iter_df1 = prep_dfs_iter("tcr/trust_output_2025Aug14/")
+iter_df1 = iter_df1
+
+iter_df2 = prep_dfs_iter("tcr/out_trust4_2025Aug19/")
+iter_df2 = iter_df2 %>% mutate(tool = paste0(tool, " (strict)"))
+
+iter_df = bind_rows(iter_df1, iter_df2)
+rm(iter_df1, iter_df2)
+
+iter_df = iter_df %>%
+  mutate(tool = str_replace(tool, "1_threads", "1_thread")) %>%
+  group_by(tool, sample, iteration) %>%
+  filter(!str_detect(CDR3aa, "out_of_frame")) %>%
+  mutate(
+    num_clones = length(unique(CDR3nt)), ## number of unique clones per iteration
+    tool = tool,
+    sample = sample,
+    iteration = iteration
+    ) %>% 
+  unique() %>% 
+  ungroup() %>%
+  group_by(tool, sample) %>%
+  ## mean number of clones across iterations
+  mutate(mean_clones = mean(num_clones))  %>%
+  ungroup()
+
+iter_df_sum = iter_df %>%
+  group_by(tool, sample, iteration) %>%
+  filter(!str_detect(CDR3nt, "out_of_frame")) %>%
+  summarise(
+    num_clones = num_clones, ## number of unique clones per iteration
+    tool = tool,
+    sample = sample,
+    iteration = iteration
+    ) %>% 
+  unique() %>% 
+  ungroup() %>%
+  group_by(tool, sample) %>%
+  ## mean number of clones across iterations
+  summarise(
+    mean_clones = mean(num_clones),
+    stdev = sd(num_clones),
+    num_clones = num_clones,
+    iteration = iteration
+    )  %>%
+  ungroup()
+
+```
+
+```{r}
+iter_bin_df = iter_df %>%
+  filter(iteration == 1) %>%
+  select(sample, tool, CDR3nt) %>%
+  distinct() %>%
+  mutate(value = 1) %>%
+  pivot_wider(names_from = tool, values_from = value, values_fill = list(value = 0))
+
+```
+
+```{r}
+# Function to calculate overlap percentage for given sets
+
+sets_list = split(iter_df$CDR3nt, iter_df$tool)
+sets_list = lapply(sets_list, unique)
+
+all_unique_values <- unique(iter_df$CDR3nt)
+total_unique_count <- length(all_unique_values)
+
+exclusive_values <- function(sets_list, combo) {
+  current_intersection <- Reduce(intersect, sets_list[combo])
+  
+  other_sets <- sets_list[setdiff(names(sets_list), combo)]
+  other_values <- unique(unlist(other_sets))
+  
+  setdiff(current_intersection, other_values)
+}
+
+calc_overlap_per_sample <- function(df_sub) {
+  sets_list <- split(df_sub$CDR3nt, df_sub$tool)
+  sets_list <- lapply(sets_list, unique)
+  
+  total_unique_count <- length(unique(df_sub$CDR3nt))
+  
+  results <- data.frame(combination = character(), overlap_percent = numeric(), stringsAsFactors = FALSE)
+  
+  for (k in 1:length(sets_list)) {
+    combos <- combn(names(sets_list), k, simplify = FALSE)
+    for (combo in combos) {
+      exclusive_vals <- exclusive_values(sets_list, combo)
+      exclusive_count <- length(exclusive_vals)
+      
+      perc <- if (total_unique_count > 0) (exclusive_count / total_unique_count) * 100 else NA
+      
+      results <- rbind(results, data.frame(
+        combination = paste(combo, collapse = ", "),
+        overlap_percent = perc
+      ))
+    }
+  }
+  results
+}
+
+
+## SINGLETONS
+result_per_sample <- iter_df %>%
+  filter(tool %in% c("RUMINA_1_thread", "UMI-tools", "UMICollapse")) %>%
+  group_by(sample) %>%
+  group_split() %>%
+  lapply(calc_overlap_per_sample)
+
+cn_single <- bind_rows(result_per_sample, .id = "sample_id") %>%
+  mutate(sample = unique(iter_df$sample)[as.integer(sample_id)]) %>%
+  select(sample, everything(), -sample_id)
+
+## SINGLETONS
+result_per_sample <- iter_df %>%
+  filter(tool %in% c("RUMINA_1_thread (strict)", "UMI-tools", "UMICollapse")) %>%
+  group_by(sample) %>%
+  group_split() %>%
+  lapply(calc_overlap_per_sample)
+
+cn_strict <- bind_rows(result_per_sample, .id = "sample_id") %>%
+  mutate(sample = unique(iter_df$sample)[as.integer(sample_id)]) %>%
+  select(sample, everything(), -sample_id)
+
+strict_totals = cn_strict %>% 
+  group_by(sample) %>% 
+  summarise(total = sum(overlap_percent)) %>%
+  pull(total)
+
+print(strict_totals)
+
+singleton_totals = cn_single %>% 
+  group_by(sample) %>% 
+  summarise(total = sum(overlap_percent)) %>%
+  pull(total)
+
+print(singleton_totals)
+
+set_plot_singletons = cn_single %>%
+  mutate(
+    combination = str_replace_all(combination, " ", "\n"),
+    combination = str_replace_all(combination, "_1_thread", "")
+  ) %>%
+  filter(overlap_percent > 1) %>%
+  arrange(desc(nchar(combination))) %>%          # Sort by string length descending
+  mutate(combination = factor(combination, levels = unique(combination))) %>%  # Set factor levels in that 
+  ggplot(aes(y = combination, x = overlap_percent / 100, color = sample, fill = sample)) +
+  # geom_jitter(size = 1.5, alpha = 0.7) +
+  geom_beeswarm(size = 1.5, alpha = 0.7) +
+  scale_color_brewer(palette = "Dark2") +
+  scale_x_continuous(labels = scales::percent_format(scale = 100), limits = c(0.0, 1)) +
+  theme_classic() +
+  theme(
+    axis.text.y = element_text(size = 6),
+    legend.position = "none",
+    legend.title = element_blank()
+  ) + 
+  xlab("% of all per-sample clonotypes unique to combination") +
+  ylab("Tool combination") + 
+  labs(title = "RUMINA (with singletons)")
+
+set_plot_singletons
+
+```
+
+```{r fig.width = 8, fig.height = 5}
+td = function() {
+  current_datetime <- Sys.time()
+  formatted_string <- format(current_datetime, format = "%Y-%m-%d_%H_%M_%S")
+  return (formatted_string)
+}
+
+count_plot = iter_df_sum  %>%
+  filter(tool %in% c("RUMINA_1_thread", "UMI-tools", "UMICollapse")) %>%
+  filter(iteration == 0 & !str_detect("Je", tool)) %>%
+  mutate(tool = str_replace(tool, "_1_thread", "")) %>%
+  ggplot() +
+  geom_col(aes(y = tool, x = mean_clones, color = sample, fill = sample), alpha = 0.6, position = position_dodge(0.9)) +
+  theme_classic() +
+  scale_y_discrete(position = "left") +
+  scale_x_continuous(limits = c(0, 25000), breaks = seq(0, 25000, 5000)) +
+  scale_color_brewer(palette = "Dark2") +
+  scale_fill_brewer(palette = "Dark2") +
+  guides(fill = guide_legend(nrow = 2), color = guide_legend(nrow = 2)) +
+  xlab("Number of CDR3 clonatypes") +
+  theme(
+    axis.text.x = element_text(color = "black", size = 8, angle = 45, vjust = 0.60),
+    legend.title = element_blank(),
+    axis.text.y = element_text(hjust = 1),
+    axis.title.y = element_blank(),
+    legend.position = "right"
+  )
+
+
+tcr_legend = get_legend(count_plot)
+count_plot = count_plot + theme(legend.position = "none")
+
+overlap_plot2 = (set_plot_singletons | count_plot)
+overlap_plot2 = (overlap_plot2 / tcr_legend) + plot_layout(heights = c(0.9, 0.1))
+overlap_plot2
+```
