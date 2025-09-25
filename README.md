@@ -4,19 +4,22 @@ This repository contains the code used for analysis and figures for the manuscri
 
 #### Files: 
 - analysis: scripts used to create tables and figures for the manuscript.
-- hiv_wgs, iclip, tcr: files used to prepare the three datasets used
+- iclip, tcr: files used to prepare the iCLiP and TCR datasets.
+- hiv_simulation: files used to prepare the simulated HIV dataset.
 - memtest.py: the benchmarking script used to output runtime and memory usage. Comments on usage are included within the script.
-- hum_bcrtcr.fa and human_IMGT+C.fa: auxiliary files needed to run trust4.
+- hum_bcrtcr.fa and human_IMGT+C.fa: auxiliary files needed to run TRUST4.
+- tag_splitter: the UMI cluster inspection CLI tool used to gather clsuter composition metrics. Use the Makefile inside to build (requires Cargo).
 
 #### Software needed:
 
 - R and Rstudio (along with packages specified in .Rmd files)
 - Python 2.7 (iCLIP calc_repro.py) and Python 3.11+ (all other analysis) along with packages specified in .py files.
 - A recent version of Bash
+- Cargo 1.86.0+
 - [GNU Parallel](https://www.gnu.org/software/parallel/)
 - [samtools 1.21 (htslib 1.22)](https://github.com/samtools/samtools)
 - [iVar v1.3](https://github.com/andersen-lab/ivar)
-- [UMI-tools v1.6](https://github.com/CGATOxford/UMI-tools)
+- [UMI-tools v1.1.6](https://github.com/CGATOxford/UMI-tools)
 - [UMICollapse v1.0.0](https://github.com/Daniel-Liu-c0deb0t/UMICollapse)
 - [RUMINA v0.99](https://github.com/epiliper/rumina)
 - [fastp v0.23.2](https://github.com/OpenGene/fastp)
