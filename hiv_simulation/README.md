@@ -1,4 +1,4 @@
-##Scripts for Simulating and Analyzing a Diverse HIV Population##
+##Scripts for Simulating and Analyzing a Diverse HIV Population
 
 The following scripts were used to simulate a diverse HIV population for downstream PCR error and sequencing error modeling:
 
@@ -12,7 +12,7 @@ Application of UMI error rate (applied only to amplicons, not to the original te
 
 3_art_illumina_chunks_EN.sh: This script uses the output from Step 2 and simulates Illumina sequencing errors using the ART Illumina software.
 
-##Downstream Analysis##
+##Downstream Analysis
 
 The output FASTQ files from Step 3 are aligned to the original GenBank reference using BWA-MEM.
 
