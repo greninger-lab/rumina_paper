@@ -1,8 +1,15 @@
-## RUMINA: 
 
-This repository contains the code used for analysis and figures for the manuscript titled: 
+This repository contains the code used for analysis and figures for the manuscript titled:   
+**"RUMINA: high-throughput UMI deduplication for amplicon and whole-genome sequencing with enhanced error correction."**
 
-#### Files: 
+NOTE: RUMINA 0.9.81 was used for all analysis.
+
+To install it with Cargo: 
+```bash 
+cargo install rumina --version 0.9.81
+```
+
+#### Files:
 - analysis: scripts used to create tables and figures for the manuscript.
 - iclip, tcr: files used to prepare the iCLiP and TCR datasets.
 - hiv_simulation: files used to prepare the simulated HIV dataset.
