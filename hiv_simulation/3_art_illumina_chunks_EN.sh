@@ -2,15 +2,15 @@
 
 # === CONFIGURATION ===
 
-INPUT_FASTA="HIVpop_simulation_v2_frg=.fasta.gz"
+INPUT_FASTA="HIVpop_simulation_v2_frg.fasta.gz"
 CHUNK_DIR="chunks"
 OUTPUT_DIR="fastq_chunks"
-FINAL_OUTPUT_PREFIX="final_amplicon_reads"
+FINAL_OUTPUT_PREFIX="final_amplicon_reads_v2"
 READ_LEN=150
 COVERAGE=1
 SEQ_SYSTEM="HS25"
 JOBS=8  # change this depending on your available system (Mac M1: 8-10)
-SEED=31 #used in art-illumina (changed to seed 42 and 53 for other two iterations)
+SEED=42 #used in art-illumina
 
 # === MAKE DIRECTORIES ===
 
@@ -43,13 +43,13 @@ for i, record in enumerate(SeqIO.parse(handle, "fasta")):
     if (i + 1) % chunk_size == 0:
         out_path = os.path.join(chunk_dir, f"chunk_{chunk_idx:04d}.fasta")
         SeqIO.write(records, out_path, "fasta")
-        print(f"✅ Chunk {chunk_idx:04d} escrito con {len(records)} secuencias")
+        print(f"✅ Chunk {chunk_idx:04d} with {len(records)} secuencias")
         chunk_idx += 1
         records = []
 if records:
     out_path = os.path.join(chunk_dir, f"chunk_{chunk_idx:04d}.fasta")
     SeqIO.write(records, out_path, "fasta")
-    print(f"✅ Chunk {chunk_idx:04d} escrito con {len(records)} secuencias")
+    print(f"✅ Chunk {chunk_idx:04d} with {len(records)} secuencias")
 handle.close()
 EOF
 
@@ -81,7 +81,7 @@ export OUTPUT_DIR READ_LEN COVERAGE SEQ_SYSTEM SEED
 
 # === RUN WITH GNU PARALLEL ===
 
-echo "🎬 Starting simulation with ART-Illumina in paralel..."
+echo "🎬 Starting simulation with ART-Illumina in parallel..."
 
 find "$CHUNK_DIR" -name "*.fasta" | parallel --jobs "$JOBS" simulate_chunk {}
 
