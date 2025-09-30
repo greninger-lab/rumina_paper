@@ -43,13 +43,13 @@ for i, record in enumerate(SeqIO.parse(handle, "fasta")):
     if (i + 1) % chunk_size == 0:
         out_path = os.path.join(chunk_dir, f"chunk_{chunk_idx:04d}.fasta")
         SeqIO.write(records, out_path, "fasta")
-        print(f"✅ Chunk {chunk_idx:04d} with {len(records)} secuencias")
+        print(f"✅ Chunk {chunk_idx:04d} with {len(records)} sequences")
         chunk_idx += 1
         records = []
 if records:
     out_path = os.path.join(chunk_dir, f"chunk_{chunk_idx:04d}.fasta")
     SeqIO.write(records, out_path, "fasta")
-    print(f"✅ Chunk {chunk_idx:04d} with {len(records)} secuencias")
+    print(f"✅ Chunk {chunk_idx:04d} with {len(records)} sequences")
 handle.close()
 EOF
 
