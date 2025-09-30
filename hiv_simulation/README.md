@@ -1,3 +1,9 @@
+Note: the following analysis requires...
+
+- BioPython 1.85
+- Python 3.13
+- art-illumina 2.5.8 [We downloaded it from here](https://www.niehs.nih.gov/research/resources/software/biostatistics/art)
+
 ## Scripts for Simulating and Analyzing a Diverse HIV Population
 
 The following scripts were used to simulate a diverse HIV population for downstream PCR error and sequencing error modeling:
