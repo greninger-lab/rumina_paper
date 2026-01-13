@@ -42,6 +42,10 @@ Input/output files too large to be hosted on GitHub, as well as back-up copies o
 
 
 # File/directory descriptions:
+
+## `memtest.py`
+
+Driver script for running all tools with all conditions and all datasets/input files. Methods to be run and datasets to be tested are specified in tuples within the script. Requires biopython and psutil packages.
 ## `analysis`
 
 All files relating to this section are located in this repository.
@@ -83,6 +87,13 @@ https://doi.org/10.5281/zenodo.18167542 and https://doi.org/10.5281/zenodo.18176
 
 `twoenv.tar.gz` is a python2 virtual environment for running the CGAT reproducibility scripts.
 
+####  Instructions
+
+0. Download the sequencing datasets (SRA/ERA accessions) listed in fastq/sra.txt, and preprocess and align them using the numbered scripts in the same directory.
+1. You can also use the BAMs uploaded, as they are outputs of step 0.
+2. run memtest.py with the "iclip" entry in the DATASET variable uncommented.
+3. run algo_comp.sh to compare reproducibility values between tools/samples.
+4. use `tag_splitter` on the output directories to generate the cluster reports, or use the already-uploaded cluster reports.
 ## `tcr`
 
 #### Files in this repository
@@ -108,10 +119,16 @@ All files for this section can be found at https://doi.org/10.5281/zenodo.181675
 - hum_bcrtcr.fa and human_IMGT+C.fa: auxiliary files needed to run TRUST4.
 - tag_splitter: the UMI cluster inspection CLI tool used to gather clsuter composition metrics. Use the Makefile inside to build (requires Cargo).
 
+####  Instructions
+
+1. move the BAMs from outside the `bams` folder into their own folder called "tcr"
+2. run memtest.py with the "tcr" entry in the DATASET variable uncommented.
+3. run the trust4.sh script to generate trust4 outputs
+4. alternatively to steps 1-3, decompress the trust4 reports hosted on Zenodo
+
 ## `hiv_simulation`
 
 For more details, see the README in this folder.
-
 
 #### Files in this repository
 - iVar_reports: per-output-file SNV reports generated using iVar variants.
@@ -131,6 +148,10 @@ All files for this section can be found in https://doi.org/10.5281/zenodo.181767
 - group.sh: script to generate UMI cluster reports using `tag_splitter`
 - cluster_reports.tar.gz: holds said cluster reports.
 
-## `memtest.py`
+####  Instructions
 
-Driver script for running all tools with all conditions and all datasets/input files. Methods to be run and datasets to be tested are specified in tuples within the script. Requires biopython and psutil packages.
+1. move the *.BAM files to their own folder called "hiv_sim"
+2. run memtest.py with the "hiv_sim" dataset uncommented
+3. run ivar_2025_Aug14.sh and group.sh to generate the variant reports and cluster reports, respectively.
+
+
