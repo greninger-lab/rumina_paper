@@ -115,32 +115,43 @@ def run_rumina(dir, group_method, singletons, file, iteration, separator, _ref, 
 METHODS = [
     ## other tools 
 
-    # (run_umitools, None, None, None, None),
-    # (run_umicollapse, None, None, None, None),
+    (run_umitools, None, None, None, None),
+    (run_umicollapse, None, None, None, None),
 
     ## directional method
 
-    # (run_rumina, "directional", "--singletons", 1, None),
-    # (run_rumina, "directional", "--singletons", 4, None),
-    # (run_rumina, "directional", "--singletons", 8, None),
+    (run_rumina, "directional", "--singletons", 1, None),
+    (run_rumina, "directional", "--singletons", 4, None),
+    (run_rumina, "directional", "--singletons", 8, None),
     
-    # (run_rumina, "directional", None, 1, None),
-    # (run_rumina, "directional", None, 4, None),
-    # (run_rumina, "directional", None, 8, None),
+    (run_rumina, "directional", None, 1, None),
+    (run_rumina, "directional", None, 4, None),
+    (run_rumina, "directional", None, 8, None),
     
     ## acyclic method
 
-    # (run_rumina, "acyclic", "--singletons", 1, None),
-    # (run_rumina, "acyclic", "--singletons", 4, None),
-    # (run_rumina, "acyclic", "--singletons", 8, None),
+    (run_rumina, "acyclic", "--singletons", 1, None),
+    (run_rumina, "acyclic", "--singletons", 4, None),
+    (run_rumina, "acyclic", "--singletons", 8, None),
+
+    (run_rumina, "acyclic", None, 1, None),
+    (run_rumina, "acyclic", None, 4, None),
+    (run_rumina, "acyclic", None, 8, None),
     
-    # (run_rumina, "acyclic", None, 1, None),
-    # (run_rumina, "acyclic", None, 4, None),
-    # (run_rumina, "acyclic", None, 8, None),
+    ## raw method
+
+    (run_rumina, "acyclic", "--singletons", 1, None),
+    (run_rumina, "acyclic", "--singletons", 4, None),
+    (run_rumina, "acyclic", "--singletons", 8, None),
+
+    (run_rumina, "acyclic", None, 1, None),
+    (run_rumina, "acyclic", None, 4, None),
+    (run_rumina, "acyclic", None, 8, None),
+    
 
 ]
 
-NUM_ITERATIONS = 3
+NUM_ITERATIONS = 1
 
 # amount of time a tool is allowed to use before being terminated, in seconds
 MAX_TIME = 14400
@@ -148,9 +159,9 @@ MAX_TIME = 14400
 # dataset name, whether or not it's paired, and samtools-indexed reference fasta path (required by umierrorcorrect), extra
 # whether or not to stratify by length
 DATASETS = [
-    ("iclip", False, "mm9.fa", False),
-    ("tcr", False, "hg38.analysisSet.fa", False),
-    ("hiv_wgs", True, "hiv.fasta", False),
+    ("iclip", False, None, False),
+    ("tcr", False, None, False),
+    ("hiv_sim", True, None, False),
 ]  # directories containing bamfiles to test
 
 
@@ -266,6 +277,7 @@ def main():
         "Ouput reads (total)",
         "Output reads (mapped)",
         "Iteration",
+        "Command",
     ]
 
     separator = None
@@ -282,7 +294,7 @@ def main():
 
         print(dir, is_paired)
 
-        if dir == "iclip" or dir == "tcr" or dir == "hiv_wgs":
+        if dir == "iclip" or dir == "tcr":
             separator = "_"
         else:
             separator = ":"
@@ -320,16 +332,12 @@ def main():
                             if "UMICollapse" in tool:
                                 cmd.extend(["--paired"])
                             elif "RUMINA" in tool:
-                                if dir == "hiv_wgs" and not pair_method:
+                                if dir == "hiv_sim" and not pair_method:
                                     cmd.extend(["--merge_pairs", ref])
+                                    # cmd.extend(["--length"])
                                 else:
                                     cmd.append("--paired")
                                 outfile = outfile.split(".bam")[0] + "_MERGED.bam"
-
-                        if dir == "hiv_wgs":
-                            if "RUMINA" in tool:
-                                cmd.extend(["-x", "100"])
-                                cmd.extend(["--length"])
 
                         print(cmd)
                     
@@ -363,6 +371,7 @@ def main():
                                 total_reads_out,
                                 mapped_reads_out,
                                 iteration,
+                                " ".join(cmd)
                             ],
                         )
 
