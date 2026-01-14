@@ -291,10 +291,54 @@ https://doi.org/10.5281/zenodo.18167542 and https://doi.org/10.5281/zenodo.18176
 
 ###  Instructions 
 
-1. move the BAMs from outside the `bams` folder into their own folder called "tcr"
-2. run memtest.py with the "tcr" entry in the DATASET variable uncommented.
-3. run the trust4.sh script to generate trust4 outputs
-4. alternatively to steps 1-3, decompress the trust4 reports hosted on Zenodo
+0. Download the FASTQs using `1_dl.sh`
+
+```bash
+cd tcr
+sh 1_dl.sh
+```
+
+1. Extract the UMIs from FASTQ read sequence to the header
+```bash
+sh extract_umi.sh
+```
+
+2. Map the new FASTQs to the hg38 reference genome:
+```bash
+sh map.sh
+```
+
+3. if you skipped this step and downloaded the `bam` folder from Zenodo, move the BAMs from outside the `bams` folder into `tcr`
+```bash
+mv bams/*.bam tcr
+for file in tcr/*.bam; do samtools index $file; done
+```
+4. run memtest.py with the "tcr" entry in the DATASET variable uncommented.
+```python
+DATASETS = [
+    #("iclip",       False,      None,       False),
+    ("tcr",         False,      None,       False),
+    #("hiv_sim",     True,       None,       False),
+]
+```
+5. run the trust4.sh script to generate trust4 outputs
+```bash
+cd tcr
+sh trust4.sh
+```
+6. alternatively to steps 1-3, decompress the trust4 reports hosted on Zenodo
+
+7. For cluster reports, either download the ones already on Zenodo or run group.sh:
+```bash
+cd tcr
+sh group.sh
+```
+
+8. For depth, run depth.sh:
+```bash
+cd tcr
+sh depth.sh
+```
 
 ### File descriptions
 
@@ -306,7 +350,6 @@ https://doi.org/10.5281/zenodo.18167542 and https://doi.org/10.5281/zenodo.18176
 - trust4.sh: script to run trust4 on tool OUTPUT BAMs.
 
 ###### Files on Zenodo 
-
 
 All files for this section can be found at https://doi.org/10.5281/zenodo.18167580.
 
