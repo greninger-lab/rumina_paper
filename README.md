@@ -150,6 +150,7 @@ All files for this section can be found in https://doi.org/10.5281/zenodo.181767
 
 ####  Instructions
 
+0. Map the FASTQs using 4_to_bam.sh. Note that the FASTQs are outputs of the scripts starting with 1-3.
 1. move the *.BAM files to their own folder called "hiv_sim"
 2. run memtest.py with the "hiv_sim" dataset uncommented
 3. run ivar_2025_Aug14.sh and group.sh to generate the variant reports and cluster reports, respectively.
