@@ -9,9 +9,8 @@ def generateReaperMetaData(infile, sample_table_file):
     adaptor_3prime = "AGATCGGAAGAGCGGTTCAGCAGGAATGCCGAGACCGATCTCGTATGCCGTCTTCTGCTTG"
 
     outlines = []
-    lane = os.path.basename(infile).split('_ext.fastq.gz')[0] # Get filename without extension
+    lane = os.path.basename(infile).split('_ext.fastq.gz')[0]
 
-    # Read the sample table
     with open(sample_table_file, 'r') as sample_table:
         for line in sample_table:
             fields = line.strip().split("\t")
@@ -20,21 +19,16 @@ def generateReaperMetaData(infile, sample_table_file):
             if lane in lanes:
                 outlines.append([barcode, adaptor_3prime, adaptor_5prime, "-"])
 
-    # Define output filename
     output_filename = f"{lane}_reaper_metadata.tsv"
 
-    # Write to output file
     with open(output_filename, 'w') as outf:
-        # Write header
         outf.write("\t".join(["barcode", "3p-ad", "tabu", "5p-si"]) + "\n")
-        # Write data lines
         for outline in outlines:
             outf.write("\t".join(outline) + "\n")
 
-# Example usage
 if __name__ == "__main__":
-    fastq_files = glob.glob("*_ext.fastq.gz")  # Adjust this pattern as necessary
-    sample_table_path = "sample_table.tsv"  # Update with actual path
+    fastq_files = glob.glob("*_ext.fastq.gz")
+    sample_table_path = "sample_table.tsv"
 
     for fastq_file in fastq_files:
         generateReaperMetaData(fastq_file, sample_table_path)

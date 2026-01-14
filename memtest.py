@@ -109,46 +109,39 @@ def run_rumina(dir, group_method, singletons, file, iteration, separator, _ref, 
     return outfile, method, cmd
 
 
-# tuple structure
-### cmd to run, grouping algorithm to use, whether or not to keep singletons, threads, paired-end handling method
-### 'None' means default value was used
+# table structure:
+    # tool to run       method              singletons          threads     paired-end method
 METHODS = [
     ## other tools 
-
-    (run_umitools, None, None, None, None),
-    (run_umicollapse, None, None, None, None),
+    (run_umitools,		None,		        None,		        1,	        None),
+    (run_umicollapse,	None,		        None,		        1,	        None),
 
     ## directional method
-
-    (run_rumina, "directional", "--singletons", 1, None),
-    (run_rumina, "directional", "--singletons", 4, None),
-    (run_rumina, "directional", "--singletons", 8, None),
+    (run_rumina,		"directional",		"--singletons",		1,	        None),
+    (run_rumina,		"directional",		"--singletons",		4,	        None),
+    (run_rumina,		"directional",		"--singletons",		8,	        None),
     
-    (run_rumina, "directional", None, 1, None),
-    (run_rumina, "directional", None, 4, None),
-    (run_rumina, "directional", None, 8, None),
+    (run_rumina,		"directional",		None,		        1,	        None),
+    (run_rumina,		"directional",		None,		        4,	        None),
+    (run_rumina,		"directional",		None,		        8,	        None),
     
     ## acyclic method
+    (run_rumina,		"acyclic",		    "--singletons",		1,	        None),
+    (run_rumina,		"acyclic",		    "--singletons",		4,	        None),
+    (run_rumina,		"acyclic",		    "--singletons",		8,	        None),
 
-    (run_rumina, "acyclic", "--singletons", 1, None),
-    (run_rumina, "acyclic", "--singletons", 4, None),
-    (run_rumina, "acyclic", "--singletons", 8, None),
-
-    (run_rumina, "acyclic", None, 1, None),
-    (run_rumina, "acyclic", None, 4, None),
-    (run_rumina, "acyclic", None, 8, None),
+    (run_rumina,		"acyclic",		    None,		        1,	        None),
+    (run_rumina,		"acyclic",		    None,		        4,	        None),
+    (run_rumina,		"acyclic",		    None,		        8,	        None),
     
     ## raw method
+    (run_rumina,		"raw",		        "--singletons",		1,	        None),
+    (run_rumina,		"raw",		        "--singletons",		4,	        None),
+    (run_rumina,		"raw",		        "--singletons",		8,	        None),
 
-    (run_rumina, "acyclic", "--singletons", 1, None),
-    (run_rumina, "acyclic", "--singletons", 4, None),
-    (run_rumina, "acyclic", "--singletons", 8, None),
-
-    (run_rumina, "acyclic", None, 1, None),
-    (run_rumina, "acyclic", None, 4, None),
-    (run_rumina, "acyclic", None, 8, None),
-    
-
+    (run_rumina,		"raw",		        None,		        1,          None),
+    (run_rumina,		"raw",		        None,		        4,	        None),
+    (run_rumina,		"raw",		        None,		        8,	        None),
 ]
 
 NUM_ITERATIONS = 1
@@ -156,12 +149,11 @@ NUM_ITERATIONS = 1
 # amount of time a tool is allowed to use before being terminated, in seconds
 MAX_TIME = 14400
 
-# dataset name, whether or not it's paired, and samtools-indexed reference fasta path (required by umierrorcorrect), extra
-# whether or not to stratify by length
+#   dataset         paired-end  ref fasta   stratify by length
 DATASETS = [
-    ("iclip", False, None, False),
-    ("tcr", False, None, False),
-    ("hiv_sim", True, None, False),
+    ("iclip",       False,      None,       False),
+    ("tcr",         False,      None,       False),
+    ("hiv_sim",     True,       None,       False),
 ]  # directories containing bamfiles to test
 
 

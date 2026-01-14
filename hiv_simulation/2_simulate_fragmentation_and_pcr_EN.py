@@ -5,6 +5,7 @@ import shutil
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from argparse import ArgumentParser
 
 # ==== SEED FOR DETERMINISM ====
 SEED = 31 #changed to seed 42 and 53 for other two iterations
@@ -16,6 +17,7 @@ INPUT_FASTA = "HIVpop_simulation_v2.fasta"
 OUTPUT_FASTA_GZ = "HIVpop_simulation_v2_frg.fasta.gz"
 
 UMI_LENGTH = 10 # changed in conditions UMI=8 and UMI=12
+UMI_ERR_RATE = 0.005
 FRAGMENT_MEAN = 300
 FRAGMENT_STD = 100
 PCR_CYCLES = 7 # changed in conditions PCR=10 and PCR=13
@@ -105,7 +107,7 @@ def process_templates(input_path, output_path_gz):
 
             for copy_idx in range(n_copies):
                 mutated_frag = introduce_pcr_errors(frag)
-                mutated_umi = introduce_umi_errors(umi)
+                mutated_umi = introduce_umi_errors(umi, UMI_ERR_RATE)
                 copy_id = f"{template_id}_frag{frag_idx+1}_copy{copy_idx+1}_UMI:{mutated_umi}"
                 fragment_record = SeqRecord(Seq(mutated_frag), id=copy_id, description="")
                 records.append(fragment_record)
@@ -153,4 +155,36 @@ def process_templates(input_path, output_path_gz):
 # ==== MAIN ====
 
 if __name__ == "__main__":
+    parser = ArgumentParser()
+    _ = parser.add_argument("--SEED", required = False, choices = [31, 42, 53], type = int)
+    _ = parser.add_argument("--N_PCR_CYCLES", required = False, choices = [7, 10, 13], type = int)
+    _ = parser.add_argument("--UMI_ERR_RATE", required = False, choices = [0.005, 0.001, 0.01], type = float)
+    _ = parser.add_argument("--UMI_LEN", required = False, choices = [8, 10, 12], type = float)
+    args = parser.parse_args()
+
+    if args.SEED:
+        print("Overriding SEED value with new value" + str(args.SEED))
+        SEED = args.SEED
+        random.seed(SEED)
+
+    if args.N_PCR_CYCLES:
+        print("Overriding N_PCR_CYCLES with new value " + str(args.N_PCR_CYCLES))
+        PCR_CYCLES = args.N_PCR_CYCLES
+
+        if PCR_CYCLES == 7:
+            MAX_PCR_COPIES = 300
+        elif PCR_CYCLES == 10:
+            MAX_PCR_COPIES = 1200
+        else:
+            assert PCR_CYCLES == 13
+            MAX_PCR_COPIES = 8500
+
+    if args.UMI_ERR_RATE:
+        print("Overriding UMI_ERR_RATE with new value " + str(args.UMI_ERR_RATE))
+        UMI_ERR_RATE = args.UMI_ERR_RATE
+
+    if args.UMI_LEN:
+        print("Overriding UMI_LEN with new value " + str(args.UMI_LEN))
+        UMI_LEN = args.UMI_LEN
+
     process_templates(INPUT_FASTA, OUTPUT_FASTA_GZ)

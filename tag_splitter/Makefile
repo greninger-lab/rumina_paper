@@ -1,2 +1,2 @@
 build:
-	cargo build --release && cp target/release/tag_splitter ~/.cargo/bin
+	cargo build --release && cp target/release/tag_splitter .
