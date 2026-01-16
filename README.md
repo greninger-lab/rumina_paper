@@ -111,14 +111,14 @@ The `_0_`, `_1_`, and `_2_` denote the iteration. Inside each folder are the out
 `memtest.py` contains variables that can be modified to determine the tools to run and on what datasets, with what arguments. The `DATASETS` variable contains the following: 
 
 ```python
-#   dataset         paired-end  ref fasta   stratify by length
+#   dataset         paired-end  ref fasta                           stratify by length
 DATASETS = [
-    ("iclip",       False,      None,       False),
-    ("tcr",         False,      None,       False),
-    ("hiv_sim",     True,       None,       False),
+    ("iclip",       False,      None,                                   False),
+    ("tcr",         False,      None,                                   False),
+    ("hiv_sim",     True,       "hiv_simulation/HIV_HXB2.fasta",        False),
 ]  # directories containing bamfiles to test
 ```
-Each dataset is a 4-tuple, with 1) the dataset folder containing input BAMs, 2) whether or not it's paired-end, 3) ref fasta path (unused) and 4) whether or not to stratify UMI grouping additionally by length.
+Each dataset is a 4-tuple, with 1) the dataset folder containing input BAMs, 2) whether or not it's paired-end, 3) ref fasta path (unused except for `hiv_simulation`) and 4) whether or not to stratify UMI grouping additionally by length. Cloning this repository should contain the ref fasta in `hiv_simulation`.
 
 Iterations can be controlled with the `NUM_ITERATIONS` variable, and programs exceeding the maximum allowed runtime in seconds will be terminated. 
 ```python
@@ -220,7 +220,7 @@ mv *.bam ../
 DATASETS = [
     ("iclip",       False,      None,       False),
     #("tcr",         False,      None,       False),
-    #("hiv_sim",     True,       None,       False),
+    #("hiv_sim",     True,       "hiv_simulation/HIV_HXB2.fasta",        False),
 ]
 ```
 
@@ -318,7 +318,7 @@ for file in tcr/*.bam; do samtools index $file; done
 DATASETS = [
     #("iclip",       False,      None,       False),
     ("tcr",         False,      None,       False),
-    #("hiv_sim",     True,       None,       False),
+    #("hiv_sim",     True,       "hiv_simulation/HIV_HXB2.fasta",        False),
 ]
 ```
 5. run the trust4.sh script to generate trust4 outputs
@@ -390,7 +390,7 @@ sh 4_to_bam.sh
 DATASETS = [
     #("iclip",       False,      None,       False),
     #("tcr",         False,      None,       False),
-    ("hiv_sim",     True,       None,       False),
+    ("hiv_sim",     True,       "hiv_simulation/HIV_HXB2.fasta",        False),
 ]
 ```
 4. Run group.sh to generate per-file cluster reports using the `tag_splitter` CLI program. These reports are already included in the Zenodo repository should you wish to skip this step.

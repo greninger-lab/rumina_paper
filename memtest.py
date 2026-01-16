@@ -149,11 +149,11 @@ NUM_ITERATIONS = 1
 # amount of time a tool is allowed to use before being terminated, in seconds
 MAX_TIME = 14400
 
-#   dataset         paired-end  ref fasta   stratify by length
+#   dataset         paired-end  ref fasta                           stratify by length
 DATASETS = [
-    ("iclip",       False,      None,       False),
-    ("tcr",         False,      None,       False),
-    ("hiv_sim",     True,       None,       False),
+    ("iclip",       False,      None,                                   False),
+    ("tcr",         False,      None,                                   False),
+    ("hiv_sim",     True,       "hiv_simulation/HIV_HXB2.fasta",        False),
 ]  # directories containing bamfiles to test
 
 
