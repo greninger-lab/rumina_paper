@@ -253,6 +253,14 @@ def main():
     """
     Run each tool on each provided dataset, recording input and output reads, runtime and peak memory usage.
     """
+
+    if not os.path.exists("report"):
+            os.mkdir("report")
+    else:
+        if os.path.isfile("report"):
+            print("Error: cannot continue because 'report' already exists and is a file, when it needs to be a directory. Make a directory called 'report' to continue.")
+            exit(1)
+
     report = pd.DataFrame()
 
     columns = [
@@ -283,6 +291,15 @@ def main():
         report[col] = ""
 
     for dir, is_paired, ref, use_read_length in DATASETS:
+
+        ## check if any input BAMs are unindexed. Index them before benchmarking.
+        for file in os.listdir(dir):
+            if file.endswith(".bam"):
+                index_name = os.path.join(dir, file + ".bai")
+                if not os.path.exists(index_name):
+                    print("index " + index_name + " not found for input file. Attempting to index...")
+                    if subprocess.run(["samtools", "index", "-@", "10", os.path.join(dir, file)]).returncode != 0:
+                        print("Indexing " + file + " returned non-zero exit code. Check samtools output for errors.")
 
         print(dir, is_paired)
 
