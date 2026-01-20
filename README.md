@@ -51,14 +51,14 @@ cargo install rumina --version 0.9.81
 - R and Rstudio (along with packages specified in .Rmd files)
 - Python 2.7 (iCLIP calc_repro.py) and Python 3.11+ (all other analysis) along with packages specified in .py files.
 - Cargo 1.86.0+
-- [GNU Parallel](https://www.gnu.org/software/parallel/)
+- [GNU Parallel v20250322](https://www.gnu.org/software/parallel/)
 - [samtools 1.21 (htslib 1.22)](https://github.com/samtools/samtools)
 - [iVar v1.3](https://github.com/andersen-lab/ivar)
 - [UMI-tools v1.1.6](https://github.com/CGATOxford/UMI-tools)
 - [UMICollapse v1.0.0](https://github.com/Daniel-Liu-c0deb0t/UMICollapse)
-- [RUMINA v0.99](https://github.com/epiliper/rumina)
+- [RUMINA v0.9.81](https://github.com/epiliper/rumina)
 - [fastp v0.23.2](https://github.com/OpenGene/fastp)
-- [Reaper](https://gensoft.pasteur.fr/docs/reaper/15-065/reaper.html)
+- [Reaper v17-257](https://gensoft.pasteur.fr/docs/reaper/15-065/reaper.html)
 - Bowtie2 v2.5.4
 - BWA MEM 0.7.19-r1273
 
